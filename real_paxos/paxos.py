@@ -2,6 +2,9 @@
 import sys
 import socket
 import struct
+from message import Message
+
+ACCEPTORS = 3     # if you want more acceptors, change here
 
 
 def mcast_receiver(hostport):
@@ -38,6 +41,9 @@ def acceptor(config, id):
     r = mcast_receiver(config['acceptors'])
     s = mcast_sender()
     while True:
+        # init_state = {"rnd": 0, "v-rnd": 0, "v-val": 0}  # acceptor state
+        # if instance not in paxos_instances.keys():
+        #    paxos_instances[instance] = init_state
         msg = r.recv(2 ** 16)
         # fake acceptor! just forwards messages to the learner
         if id == 1:
@@ -49,12 +55,13 @@ def proposer(config, id):
     print('-> proposer', id)
     r = mcast_receiver(config['proposers'])
     s = mcast_sender()
+    state_dict = dict()
     while True:
+        msg = None
         msg = r.recv(2 ** 16)
-        # fake proposer! just forwards message to the acceptor
-        if id == 1:
-            # print "proposer: sending %s to acceptors" % (msg)
-            s.sendto(msg, config['acceptors'])
+        if msg is not None:
+            a = Message(0, '1A', c_rnd=1) #TODO c_rnd
+            s.sendto(a, config['acceptors'])
 
 
 def learner(config, id):
