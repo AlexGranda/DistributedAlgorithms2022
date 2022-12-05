@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
+import pickle
 import sys
+import math
 import socket
 import struct
 from message import Message
 
-ACCEPTORS = 3     # if you want more acceptors, change here
+ACCEPTORS = 3  # if you want more acceptors, change here
 
 
 def mcast_receiver(hostport):
@@ -56,18 +58,77 @@ def proposer(config, id):
     r = mcast_receiver(config['proposers'])
     s = mcast_sender()
     state_dict = dict()
+    quorum = math.ceil((ACCEPTORS + 1) / 2)
+
     while True:
         msg = None
         msg = r.recv(2 ** 16)
+
         if msg is not None:
-            a = Message(0, '1A', c_rnd=1) #TODO c_rnd
-            s.sendto(a, config['acceptors'])
+            client_message = True
+            try:
+                pickle.loads(msg)
+                client_message = False
+            except:
+                None
+
+            if client_message:
+                # we know that the id is unique for each proposer with respect to the instance so we use it directly
+                # as c_rnd
+                state_dict[len(state_dict)] = {
+                    'quorum': 0,  # quorum counter
+                    'value': msg.decode(),  # value to be proposed,
+                    'phase': '1A',  # current proposer phase for this instance
+                    'k': 0,
+                    'k_v_val': None
+                }
+                phase_1A_message = Message(len(state_dict), '1A', c_rnd=id)
+                s.sendto(phase_1A_message, config['acceptors'])
+
+            else:
+                decoded_message = Message(0, 'DECODING').decode(msg)
+                message_instance = decoded_message.instance
+                message_phase = decoded_message.phase
+                message_rnd = decoded_message.rnd
+                message_v_rnd = decoded_message.v_rnd
+                message_v_val = decoded_message.v_val
+
+                # check the phase of the proposer regarding the instance of the message
+                if state_dict[message_instance]['phase'] == '1A':
+                    # we already know that the message phase is 1B
+                    if id == message_rnd:
+                        state_dict[message_instance]['quorum'] += 1
+                        if state_dict[message_instance]['k'] < message_v_rnd:
+                            state_dict[message_instance]['k'] = message_v_rnd
+                            state_dict[message_instance]['k_v_val'] = message_v_val
+                            # check quorum reached
+                    if state_dict[message_instance]['quorum'] == quorum:
+                        value_to_be_proposed = msg if state_dict[message_instance]['k'] == 0 else \
+                            state_dict[message_instance]['k_v_val']
+                        state_dict[message_instance]['phase'] = '2A'
+                        phase_2A_message = Message(message_instance, '2A', c_rnd=id,
+                                                   c_val=value_to_be_proposed)
+                        s.sendto(phase_2A_message.encode(), config['acceptors'])
+
+                elif state_dict[message_instance]['phase'] == '2A':
+                    # if message is 1B we don't care anymore, since we already achieved the quorum for phase 1A for this instance
+                    if message_phase == '2B' and message_v_rnd == id:  # we coount in the quorum only messages with v_rnd == c_rnd
+                        state_dict[message_instance]['quorum'] += 1
+                        # check quorum reached
+                        if state_dict[message_instance]['quorum'] == quorum:
+                            value_to_be_proposed = message_v_val
+                            state_dict[message_instance]['phase'] = 'DECISION'
+                            phase_DECISION_message = Message(message_instance, 'DECISION', v_val=value_to_be_proposed)
+                            s.sendto(phase_DECISION_message.encode(),
+                                     config['learners'])  # TODO check how to handle this for the prder
 
 
 def learner(config, id):
     r = mcast_receiver(config['learners'])
     while True:
         msg = r.recv(2 ** 16)
+        msg = Message(0, 'DECODING').decode(msg)  # create instance of Message for the received decision
+        msg = msg.v_val  # retrieve only the value
         print(msg)
         sys.stdout.flush()
 
@@ -77,7 +138,7 @@ def client(config, id):
     s = mcast_sender()
     for value in sys.stdin:
         value = value.strip()
-        print("client: sending %s to proposers" % (value))
+        print("client: sending %s to proposers" % value)
         s.sendto(value.encode(), config['proposers'])
     print('client done.')
 
