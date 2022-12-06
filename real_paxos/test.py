@@ -6,6 +6,7 @@ import socket
 import struct
 from message import Message
 import pickle
+import codecs
 
 
 def mcast_sender():
@@ -14,18 +15,27 @@ def mcast_sender():
     return send_sock
 
 
-msg = message.Message(0, '1A', c_rnd=1)
-print(msg)
-a = msg.encode()
-print(type(pickle.loads(a)))
-a = message.Message(0, 'DECODING').decode(a)
-print(a)
+msg = message.Message(0, '1A', c_rnd=1).encode()
 
-print('-> client ', id)
-s = mcast_sender()
-value = '13 '
-value = value.strip()
-print("client: sending %s to proposers" % value)
-print(type(value.encode()))
-print(value.encode())
-print(pickle.loads(value.encode()))
+state_dict = dict()
+state_dict[0] = {
+    'quorum1B': 0,  # quorum counter for phase 2A
+    'quorum2B': 0,  # quorum counter for DECISION
+    'value': Message(0, 'DECODING').decode(msg),  # value to be proposed,
+    'phase': '1A',  # current proposer phase for this instance
+    'k': 1,
+    'k_v_val': None
+}
+
+print(sys.getsizeof(msg), 'bytes')
+print(sys.getsizeof('0|0|123456789|1A|1|NONE'.encode()), 'bytes')
+
+print('0|0|123456789|1A|1|NONE'.split('|'))
+
+import zlib
+
+a = "this string needs compressing"
+print(sys.getsizeof(codecs.encode(a)), 'bytes')
+
+#print(sys.getsizeof(codecs.encode(message.Message(0, '1A', c_rnd=1))), 'bytes')
+

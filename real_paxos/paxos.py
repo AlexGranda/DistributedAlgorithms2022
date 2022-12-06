@@ -108,7 +108,7 @@ def proposer(config, id):
                 # as c_rnd
                 state_dict[len(state_dict)] = {
                     'quorum1B': 0,  # quorum counter for phase 2A
-                    'quorum2B': 0, # quorum counter for DECISION
+                    'quorum2B': 0,  # quorum counter for DECISION
                     'value': msg.decode(),  # value to be proposed,
                     'phase': '1A',  # current proposer phase for this instance
                     'k': 1,
@@ -116,7 +116,7 @@ def proposer(config, id):
                 }
                 phase_1A_message = Message(len(state_dict) - 1, '1A', c_rnd=id)
                 s.sendto(phase_1A_message.encode(), config['acceptors'])
-                #print('proposer', id, state_dict) # phase 1a working
+                # print('proposer', id, state_dict) # phase 1a working
             else:
                 decoded_message = Message(0, 'DECODING').decode(msg)
                 message_instance = decoded_message.instance
@@ -155,8 +155,8 @@ def proposer(config, id):
                             state_dict[message_instance]['phase'] = 'DECISION'
                             phase_DECISION_message = Message(message_instance, 'DECISION', v_val=value_to_be_proposed)
                             s.sendto(phase_DECISION_message.encode(),
-                                     config['learners'])
-                            #print('proposer', id, state_dict)
+                                     config['learners'])  # TODO check how to handle this for the order
+                            # print('proposer', id, state_dict)
 
 
 def learner(config, id):
