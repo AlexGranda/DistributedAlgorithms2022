@@ -42,17 +42,3 @@ print(sys.getsizeof(codecs.encode(a)), 'bytes')
 mydict = {'1': ['bar']}
 print(mydict, end='\n')
 
-import threading
-
-
-def func(**kwargs):
-    kwargs['1'][0] = 'mom'
-    print(kwargs, end='\n')
-
-
-threading.Thread(target=func, kwargs=mydict).start()
-
-mydict['2'] = ['c']
-print(mydict, end='\n')
-
-threading.Thread(target=func, kwargs=mydict).start()
