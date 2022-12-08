@@ -32,6 +32,11 @@ class Message:
         elif self.phase == 'DECISION':
             self.v_val = v_val
 
+        elif self.phase == 'CATCHUP':
+            None #TODO
+            #last instance received
+            #last contiguous instance
+
     def encode(self):
         return pickle.dumps(vars(self))
 

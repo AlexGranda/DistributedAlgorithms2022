@@ -11,7 +11,7 @@ import numpy as np
 from message import Message
 
 ACCEPTORS = 3  # if you want more acceptors, change here
-LOSS_PERCENTAGE = 0.25
+LOSS_PERCENTAGE = 0.25  # PUT ZERO IF YOU WANT TO USE YOUR SCRIPT FOR THE LOSS PERCENTAGE
 TIMEOUT_TIMER = 0.15
 
 
@@ -61,6 +61,7 @@ def acceptor(config, id):
             message_phase = decoded_message.phase
 
             if message_phase == '1A':
+                print(decoded_message)
                 if message_instance not in acc_state_dict.keys():
                     # instance doesn't exists for the acceptor yet, we create a new state
                     acc_state_dict[message_instance] = {
@@ -83,6 +84,7 @@ def acceptor(config, id):
 
                 # print('acceptor', id, state_dict)
             elif message_phase == '2A':
+                print(decoded_message)
                 if decoded_message.c_rnd >= acc_state_dict[message_instance]['rnd']:
                     acc_state_dict[message_instance]['v_rnd'] = decoded_message.c_rnd
                     acc_state_dict[message_instance]['v_val'] = decoded_message.c_val
@@ -158,6 +160,7 @@ def proposer(config, id):
 
                 # check the phase of the proposer regarding the instance of the message
                 if state_dict[message_instance]['phase'] == '1A':
+                    print(decoded_message)
                     # we already know that the message phase is 1B
                     if message_rnd == state_dict[message_instance]['c_rnd']:
                         state_dict[message_instance]['quorum1B'] += 1
@@ -178,6 +181,7 @@ def proposer(config, id):
                             s.sendto(phase_2A_message.encode(), config['acceptors'])
 
                 elif state_dict[message_instance]['phase'] == '2A':
+                    print(decoded_message)
                     # if message is 1B we don't care anymore, since we already achieved the quorum for phase 1A for this instance
                     if message_phase == '2B' and message_v_rnd == state_dict[message_instance]['c_rnd']:  # we coount in the quorum only messages with v_rnd == c_rnd
                         state_dict[message_instance]['quorum2B'] += 1
@@ -189,22 +193,39 @@ def proposer(config, id):
                             state_dict[message_instance]['phase'] = 'DECISION'
                             phase_DECISION_message = Message(message_instance, 'DECISION', v_val=value_to_be_proposed)
                             s.sendto(phase_DECISION_message.encode(),
-                                     config['learners'])  # TODO check how to handle this for the order, implement 10% loss for learners
+                                     config['learners'])
                             print('Consensus reached by proposer: ', id, ' instance:', message_instance)
+
                             # print('proposer', id, state_dict)
 
+
+#def learner_catchup_timeout():
+#    while True:
+#        if time.time() - last_catchup > 1:
+#            for k in learned_values.keys():
+#                s_learners.sendto(msg_decoded.encode(), config['proposers'])
+#                last_catchup = time.time()
 
 
 def learner(config, id):
     r = mcast_receiver(config['learners'])
+    global s_learners
+    global last_catchup
+    global learned_values
+    s_learners = mcast_sender()
+    last_catchup = time.time() - 10
+    learned_values = dict()
     while True:
         msg = None
         msg = r.recv(2 ** 30)
         if msg is not None:
-            msg = Message(0, 'DECODING').decode(msg)  # create instance of Message for the received decision
-            msg = msg.v_val  # retrieve only the value
-            print(msg)
-            sys.stdout.flush()
+            if np.random.uniform(low=0.0, high=1.0, size=None) > LOSS_PERCENTAGE:
+                msg_decoded = Message(0, 'DECODING').decode(msg)  # create instance of Message for the received decision
+                if msg_decoded.instance not in learned_values.keys():
+                    learned_values[msg_decoded.instance] = msg_decoded.v_val
+                    print(learned_values)
+                    #print(msg = msg.v_val)
+                    sys.stdout.flush()
 
 
 def client(config, id):
