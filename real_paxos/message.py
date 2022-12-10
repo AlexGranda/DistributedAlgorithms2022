@@ -33,9 +33,7 @@ class Message:
             self.v_val = v_val
 
         elif self.phase == 'CATCHUP':
-            None #TODO
-            #last instance received
-            #last contiguous instance
+            None #the learners just set the last continuous instance received, the proposer respond with a decision
 
     def encode(self):
         return pickle.dumps(vars(self))

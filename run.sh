@@ -21,9 +21,9 @@ cd $projdir
 
 echo "starting acceptors..."
 
-./acceptor.sh 1 $conf > &
-./acceptor.sh 2 $conf > &
-./acceptor.sh 3 $conf > &
+./acceptor.sh 1 $conf &
+./acceptor.sh 2 $conf &
+./acceptor.sh 3 $conf &
 
 sleep 1
 echo "starting learners..."
@@ -44,7 +44,7 @@ echo "starting clients..."
 ./client.sh 1 $conf < ../prop1 &
 ./client.sh 2 $conf < ../prop2 &
 
-sleep 15
+sleep 75
 
 $KILLCMD
 wait

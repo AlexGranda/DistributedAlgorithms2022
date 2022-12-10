@@ -11,7 +11,7 @@ import numpy as np
 from message import Message
 
 ACCEPTORS = 3  # if you want more acceptors, change here
-LOSS_PERCENTAGE = 0.25  # PUT ZERO IF YOU WANT TO USE YOUR SCRIPT FOR THE LOSS PERCENTAGE
+LOSS_PERCENTAGE = 0.15  # PUT ZERO IF YOU WANT TO USE YOUR SCRIPT FOR THE LOSS PERCENTAGE
 TIMEOUT_TIMER = 0.15
 
 
@@ -61,7 +61,7 @@ def acceptor(config, id):
             message_phase = decoded_message.phase
 
             if message_phase == '1A':
-                print(decoded_message)
+                # print(decoded_message)
                 if message_instance not in acc_state_dict.keys():
                     # instance doesn't exists for the acceptor yet, we create a new state
                     acc_state_dict[message_instance] = {
@@ -70,7 +70,8 @@ def acceptor(config, id):
                         'v_val': None,  # corresponding value
                     }
                     if np.random.uniform(low=0.0, high=1.0, size=None) > LOSS_PERCENTAGE:
-                        phase_1B_message = Message(message_instance, '1B', rnd=decoded_message.c_rnd, v_rnd=0, v_val=None)
+                        phase_1B_message = Message(message_instance, '1B', rnd=decoded_message.c_rnd, v_rnd=0,
+                                                   v_val=None)
                         s_acc.sendto(phase_1B_message.encode(), config['proposers'])
 
                 else:
@@ -84,7 +85,7 @@ def acceptor(config, id):
 
                 # print('acceptor', id, state_dict)
             elif message_phase == '2A':
-                print(decoded_message)
+                # print(decoded_message)
                 if decoded_message.c_rnd >= acc_state_dict[message_instance]['rnd']:
                     acc_state_dict[message_instance]['v_rnd'] = decoded_message.c_rnd
                     acc_state_dict[message_instance]['v_val'] = decoded_message.c_val
@@ -95,11 +96,12 @@ def acceptor(config, id):
                         s_acc.sendto(phase_2B_message.encode(), config['proposers'])
 
 
-#thread to check instances going out of time for the quorum
+# thread to check instances going out of time for the quorum
 def timeout_checker():
     while True:
         for p_instance in range(len(state_dict)):
-            if time.time() - state_dict[p_instance]['timestamp'] > TIMEOUT_TIMER and not state_dict[p_instance]['phase'] == 'DECISION':
+            if time.time() - state_dict[p_instance]['timestamp'] > TIMEOUT_TIMER and not state_dict[p_instance][
+                                                                                             'phase'] == 'DECISION':
                 state_dict[p_instance]['quorum1B'] = 0
                 state_dict[p_instance]['quorum2B'] = 0
                 state_dict[p_instance]['phase'] = '1A'
@@ -136,6 +138,7 @@ def proposer(config, id):
             if client_message:
                 # we know that the id is unique for each proposer with respect to the instance so we use it directly
                 # as c_rnd
+                # print('created new instance: ', len(state_dict), 'for proposer: ', id, 'value: ', msg.decode())
                 state_dict[len(state_dict)] = {
                     'quorum1B': 0,  # quorum counter for phase 2A
                     'quorum2B': 0,  # quorum counter for DECISION
@@ -147,20 +150,20 @@ def proposer(config, id):
                     'c_rnd': id
                 }
                 if np.random.uniform(low=0.0, high=1.0, size=None) > LOSS_PERCENTAGE:
-                    phase_1A_message = Message(len(state_dict) - 1, '1A', c_rnd=state_dict[len(state_dict) - 1]['c_rnd'])
+                    phase_1A_message = Message(len(state_dict) - 1, '1A',
+                                               c_rnd=state_dict[len(state_dict) - 1]['c_rnd'])
                     s.sendto(phase_1A_message.encode(), config['acceptors'])
                 # print('proposer', id, state_dict) # phase 1a working
-            else:
+            elif not client_message and len(state_dict) > 0 and Message(0, 'DECODING').decode(msg).instance<len(state_dict):  # to avoid errors from catchup
                 decoded_message = Message(0, 'DECODING').decode(msg)
                 message_instance = decoded_message.instance
                 message_phase = decoded_message.phase
                 message_rnd = decoded_message.rnd
                 message_v_rnd = decoded_message.v_rnd
                 message_v_val = decoded_message.v_val
-
                 # check the phase of the proposer regarding the instance of the message
                 if state_dict[message_instance]['phase'] == '1A':
-                    print(decoded_message)
+                    # print(decoded_message)
                     # we already know that the message phase is 1B
                     if message_rnd == state_dict[message_instance]['c_rnd']:
                         state_dict[message_instance]['quorum1B'] += 1
@@ -176,14 +179,16 @@ def proposer(config, id):
                             state_dict[message_instance]['k_v_val']
                         state_dict[message_instance]['phase'] = '2A'
                         if np.random.uniform(low=0.0, high=1.0, size=None) > LOSS_PERCENTAGE:
-                            phase_2A_message = Message(message_instance, '2A', c_rnd=state_dict[message_instance]['c_rnd'],
+                            phase_2A_message = Message(message_instance, '2A',
+                                                       c_rnd=state_dict[message_instance]['c_rnd'],
                                                        c_val=value_to_be_proposed)
                             s.sendto(phase_2A_message.encode(), config['acceptors'])
 
                 elif state_dict[message_instance]['phase'] == '2A':
-                    print(decoded_message)
+                    # print(decoded_message)
                     # if message is 1B we don't care anymore, since we already achieved the quorum for phase 1A for this instance
-                    if message_phase == '2B' and message_v_rnd == state_dict[message_instance]['c_rnd']:  # we coount in the quorum only messages with v_rnd == c_rnd
+                    if message_phase == '2B' and message_v_rnd == state_dict[message_instance]['c_rnd']:
+                        # we coount in the quorum only messages with v_rnd == c_rnd
                         state_dict[message_instance]['quorum2B'] += 1
                         # check quorum reached
                         if state_dict[message_instance]['quorum2B'] == quorum:
@@ -191,41 +196,54 @@ def proposer(config, id):
                             state_dict[message_instance]['timestamp'] = time.time()
                             value_to_be_proposed = message_v_val
                             state_dict[message_instance]['phase'] = 'DECISION'
-                            phase_DECISION_message = Message(message_instance, 'DECISION', v_val=value_to_be_proposed)
-                            s.sendto(phase_DECISION_message.encode(),
-                                     config['learners'])
-                            print('Consensus reached by proposer: ', id, ' instance:', message_instance)
+                            if np.random.uniform(low=0.0, high=1.0, size=None) > LOSS_PERCENTAGE:
+                                phase_DECISION_message = Message(message_instance, 'DECISION',
+                                                                 v_val=value_to_be_proposed)
+                                s.sendto(phase_DECISION_message.encode(),
+                                         config['learners'])
+                            print('Consensus reached by proposer: ', id, ' instance:', message_instance, 'value: ',
+                                  value_to_be_proposed)
 
                             # print('proposer', id, state_dict)
+                elif state_dict[message_instance]['phase'] == 'DECISION' and message_phase == 'CATCHUP':
+                    # from instance val to the last, if not equal to prev call phase 1a
+                    if len(state_dict.keys()) > 0 and message_instance < len(state_dict.keys()):
+                        if np.random.uniform(low=0.0, high=1.0, size=None) > LOSS_PERCENTAGE:
+                            phase_DECISION_message = Message(message_instance, 'DECISION',
+                                                             v_val=state_dict[message_instance]['value'])
+                            s.sendto(phase_DECISION_message.encode(),
+                                     config['learners'])
+                            print('Catchup proposer: ', id, ' instance:', message_instance,
+                                  'value: ', state_dict[message_instance]['value'])
 
 
-#def learner_catchup_timeout():
-#    while True:
-#        if time.time() - last_catchup > 1:
-#            for k in learned_values.keys():
-#                s_learners.sendto(msg_decoded.encode(), config['proposers'])
-#                last_catchup = time.time()
+def learner_catchup_timeout():
+    last_catchup = 0
+    while True:
+        if time.time() - last_catchup > TIMEOUT_TIMER:
+            missing_instance = len(list(learned_values.keys()))
+            catchup_message = Message(missing_instance, 'CATCHUP')
+            s_learners.sendto(catchup_message.encode(), config['proposers'])
+            last_catchup = time.time()
 
 
 def learner(config, id):
-    r = mcast_receiver(config['learners'])
     global s_learners
-    global last_catchup
     global learned_values
+    r = mcast_receiver(config['learners'])
     s_learners = mcast_sender()
-    last_catchup = time.time() - 10
     learned_values = dict()
+    threading.Thread(target=learner_catchup_timeout).start()
     while True:
         msg = None
         msg = r.recv(2 ** 30)
         if msg is not None:
-            if np.random.uniform(low=0.0, high=1.0, size=None) > LOSS_PERCENTAGE:
-                msg_decoded = Message(0, 'DECODING').decode(msg)  # create instance of Message for the received decision
-                if msg_decoded.instance not in learned_values.keys():
-                    learned_values[msg_decoded.instance] = msg_decoded.v_val
-                    print(learned_values)
-                    #print(msg = msg.v_val)
-                    sys.stdout.flush()
+            msg_decoded = Message(0, 'DECODING').decode(msg)  # create instance of Message for the received decision
+            if msg_decoded.instance == len(list(learned_values.keys())):
+                learned_values[msg_decoded.instance] = msg_decoded.v_val
+                print(msg_decoded.v_val)
+                # print(msg = msg.v_val)
+                sys.stdout.flush()
 
 
 def client(config, id):
