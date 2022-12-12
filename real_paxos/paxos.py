@@ -6,13 +6,13 @@ import socket
 import struct
 import time
 import threading
-
+import os
 import numpy as np
 from message import Message
 
 ACCEPTORS = 3  # if you launch a different number of acceptors, change here
-LOSS_PERCENTAGE = 0.35  # PUT ZERO IF YOU WANT TO USE YOUR SCRIPT FOR THE LOSS PERCENTAGE
-TIMEOUT_TIMER = 0.2
+LOSS_PERCENTAGE = 0.15  # PUT ZERO IF YOU WANT TO USE YOUR SCRIPT FOR THE LOSS PERCENTAGE
+TIMEOUT_TIMER = 0.1 # timeout for both for proposers and learners
 
 
 def mcast_receiver(hostport):
@@ -44,7 +44,7 @@ def parse_cfg(cfgpath):
 # ----------------------------------------------------
 
 def acceptor(config, id):
-    print('-> acceptor', id)
+    print('-> acceptor', id, ' pid:', os.getpid())
     r = mcast_receiver(config['acceptors'])
     s_acc = mcast_sender()
     acc_state_dict = dict()
@@ -92,14 +92,15 @@ def acceptor(config, id):
                                                    v_rnd=acc_state_dict[message_instance]['v_rnd'],
                                                    v_val=acc_state_dict[message_instance]['v_val'])
                         s_acc.sendto(phase_2B_message.encode(), config['proposers'])
-            #to handle catchup from proposers, send a message to proposers with a modified rnd, equal to proposer's crnd, in order to overwrite values in the proposer
-            #proposers will never reach consensus with this value since the crnd of the proposer without this value will be lower than the rnd of the acceptors,
-            #then the timeout for the quorum will be triggered, the crnd updated until also this proposer will reach the consensus
+            # to handle catchup from proposers, send a message to proposers with a modified rnd, equal to proposer's crnd, in order to overwrite values in the proposer
+            # proposers will never reach consensus with this value since the crnd of the proposer without this value will be lower than the rnd of the acceptors,
+            # then the timeout for the quorum will be triggered, the crnd updated until also this proposer will reach the consensus
             elif message_phase == 'CATCHUP':
                 if message_instance in acc_state_dict.keys():
                     print('ACCEPTORS CATCHUP ON INSTANCE: ', message_instance)
                     if np.random.uniform(low=0.0, high=1.0, size=None) > LOSS_PERCENTAGE:
-                        phase_1B_message = Message(message_instance, '1B', rnd=decoded_message.c_rnd, #should be the crnd of the message, but due to the previous commentis the rnd of the acceptor
+                        phase_1B_message = Message(message_instance, '1B', rnd=decoded_message.c_rnd,
+                                                   # should be the crnd of the message, but due to the previous commentis the rnd of the acceptor
                                                    v_rnd=acc_state_dict[message_instance]['v_rnd'],
                                                    v_val=acc_state_dict[message_instance]['v_val'])
                         s_acc.sendto(phase_1B_message.encode(), config['proposers'])
@@ -264,15 +265,16 @@ def proposer(config, id):
 
 
 def learner_catchup_timeout():
-    last_catchup = time.time() #to wait for clients the first time
+    last_catchup = time.time()  # to wait for clients the first time
     last_true = -1
-    #print('THREAD CALLED')
+    # print('THREAD CALLED')
     while True:
         if time.time() - last_catchup > TIMEOUT_TIMER:
-            #print('TIMEOUT TRIGGERED', list(learned_values.keys()), len(list(learned_values.keys())))
+            # print('TIMEOUT TRIGGERED', list(learned_values.keys()), len(list(learned_values.keys())))
             if len(list(learned_values.keys())) > 0:
                 if list(learned_values.keys())[0] == 0 and last_true == -1:
-                    print('instance 0:', learned_values[0])
+                    #print('instance 0:', learned_values[0])
+                    #print(learned_values[0])
                     last_true = 0
                     sys.stdout.flush()
 
@@ -286,7 +288,8 @@ def learner_catchup_timeout():
                     for g in range(last_true + 1, len(list(learned_values.keys()))):
                         if list(learned_values.keys())[g] - 1 == list(learned_values.keys())[g - 1]:
                             current_instance = list(learned_values.keys())[g]
-                            print('instance ' + str(current_instance) + ':', learned_values[current_instance])
+                            #print('instance ' + str(current_instance) + ':', learned_values[current_instance])
+                            #print(learned_values[current_instance])
                             sys.stdout.flush()
                             last_true = current_instance
 
@@ -324,7 +327,7 @@ def learner(config, id):
             if msg_decoded.instance not in list(learned_values.keys()):
                 learned_values[msg_decoded.instance] = msg_decoded.v_val
                 learned_values = dict(sorted(learned_values.items()))
-                #print(learned_values)
+                # print(learned_values)
             sys.stdout.flush()
 
 
