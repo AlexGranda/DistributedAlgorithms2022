@@ -12,7 +12,7 @@ from message import Message
 
 ACCEPTORS = 3  # if you launch a different number of acceptors, change here
 LOSS_PERCENTAGE = 0.15  # PUT ZERO IF YOU WANT TO USE YOUR SCRIPT FOR THE LOSS PERCENTAGE
-TIMEOUT_TIMER = 0.1 # timeout for both for proposers and learners
+TIMEOUT_TIMER = 0.2  # timeout for both for proposers and learners
 
 
 def mcast_receiver(hostport):
@@ -82,7 +82,7 @@ def acceptor(config, id):
                                                    v_val=acc_state_dict[message_instance]['v_val'])
                         s_acc.sendto(phase_1B_message.encode(), config['proposers'])
                 # print('acceptor', id, state_dict)
-            elif message_phase == '2A':  # avoid errors
+            elif message_phase == '2A' and message_instance in acc_state_dict.keys():  # avoid errors
                 # print(decoded_message)
                 if decoded_message.c_rnd >= acc_state_dict[message_instance]['rnd']:
                     acc_state_dict[message_instance]['v_rnd'] = decoded_message.c_rnd
@@ -97,7 +97,7 @@ def acceptor(config, id):
             # then the timeout for the quorum will be triggered, the crnd updated until also this proposer will reach the consensus
             elif message_phase == 'CATCHUP':
                 if message_instance in acc_state_dict.keys():
-                    #print('ACCEPTORS CATCHUP ON INSTANCE: ', message_instance)
+                    # print('ACCEPTORS CATCHUP ON INSTANCE: ', message_instance)
                     if np.random.uniform(low=0.0, high=1.0, size=None) > LOSS_PERCENTAGE:
                         phase_1B_message = Message(message_instance, '1B', rnd=decoded_message.c_rnd,
                                                    # should be the crnd of the message, but due to the previous commentis the rnd of the acceptor
@@ -213,13 +213,13 @@ def proposer(config, id):
                                                                  v_val=value_to_be_proposed)
                                 s.sendto(phase_DECISION_message.encode(),
                                          config['learners'])
-                                #print('Consensus reached by proposer: ', id, ' instance:', message_instance, 'value: ',
+                                # print('Consensus reached by proposer: ', id, ' instance:', message_instance, 'value: ',
                                 #      value_to_be_proposed)
 
                             # print('proposer', id, state_dict)
                 # if the message is not 1a nor 2a, it is a catchup message for sure so the else will hande if it is not in the keys starting a 1a phase
                 elif message_phase == 'CATCHUP' and state_dict[message_instance]['phase'] == 'DECISION':
-                    #print(decoded_message)
+                    # print(decoded_message)
                     # from instance val to the last, if not equal to prev call phase 1a
                     # if len(state_dict.keys()) > 0 and message_instance < len(state_dict.keys()): implied by the parent if
                     for c_index in range(message_instance, len(state_dict.keys())):
@@ -229,7 +229,7 @@ def proposer(config, id):
                                                                  v_val=state_dict[c_index]['value'])
                                 s.sendto(phase_DECISION_message.encode(),
                                          config['learners'])
-                                #print('Catchup proposer: ', id, ' instance:', c_index,
+                                # print('Catchup proposer: ', id, ' instance:', c_index,
                                 #      'value: ', state_dict[c_index]['value'])
                         # else that instance has been missed by proposer, start a 1a phase to get updated by acceptors
                         else:
@@ -273,7 +273,7 @@ def learner_catchup_timeout():
             # print('TIMEOUT TRIGGERED', list(learned_values.keys()), len(list(learned_values.keys())))
             if len(list(learned_values.keys())) > 0:
                 if list(learned_values.keys())[0] == 0 and last_true == -1:
-                    #print('instance 0:', learned_values[0])
+                    # print('instance 0:', learned_values[0])
                     print(learned_values[0])
                     last_true = 0
                     sys.stdout.flush()
@@ -288,7 +288,7 @@ def learner_catchup_timeout():
                     for g in range(last_true + 1, len(list(learned_values.keys()))):
                         if list(learned_values.keys())[g] - 1 == list(learned_values.keys())[g - 1]:
                             current_instance = list(learned_values.keys())[g]
-                            #print('instance ' + str(current_instance) + ':', learned_values[current_instance])
+                            # print('instance ' + str(current_instance) + ':', learned_values[current_instance])
                             print(learned_values[current_instance])
                             sys.stdout.flush()
                             last_true = current_instance
