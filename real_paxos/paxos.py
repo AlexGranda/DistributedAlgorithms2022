@@ -10,9 +10,9 @@ import threading
 import numpy as np
 from message import Message
 
-ACCEPTORS = 3  # if you want more acceptors, change here
-LOSS_PERCENTAGE = 0.15  # PUT ZERO IF YOU WANT TO USE YOUR SCRIPT FOR THE LOSS PERCENTAGE
-TIMEOUT_TIMER = 0.15
+ACCEPTORS = 3  # if you launch a different number of acceptors, change here
+LOSS_PERCENTAGE = 0.35  # PUT ZERO IF YOU WANT TO USE YOUR SCRIPT FOR THE LOSS PERCENTAGE
+TIMEOUT_TIMER = 0.2
 
 
 def mcast_receiver(hostport):
@@ -73,18 +73,16 @@ def acceptor(config, id):
                         phase_1B_message = Message(message_instance, '1B', rnd=decoded_message.c_rnd, v_rnd=0,
                                                    v_val=None)
                         s_acc.sendto(phase_1B_message.encode(), config['proposers'])
-
-                else:
-                    if decoded_message.c_rnd > acc_state_dict[message_instance]['rnd']:
-                        acc_state_dict[message_instance]['rnd'] = decoded_message.c_rnd
-                        if np.random.uniform(low=0.0, high=1.0, size=None) > LOSS_PERCENTAGE:
-                            phase_1B_message = Message(message_instance, '1B', rnd=decoded_message.c_rnd,
-                                                       v_rnd=acc_state_dict[message_instance]['v_rnd'],
-                                                       v_val=acc_state_dict[message_instance]['v_val'])
-                            s_acc.sendto(phase_1B_message.encode(), config['proposers'])
-
+                elif message_instance in acc_state_dict.keys() and decoded_message.c_rnd > \
+                        acc_state_dict[message_instance]['rnd']:
+                    acc_state_dict[message_instance]['rnd'] = decoded_message.c_rnd
+                    if np.random.uniform(low=0.0, high=1.0, size=None) > LOSS_PERCENTAGE:
+                        phase_1B_message = Message(message_instance, '1B', rnd=decoded_message.c_rnd,
+                                                   v_rnd=acc_state_dict[message_instance]['v_rnd'],
+                                                   v_val=acc_state_dict[message_instance]['v_val'])
+                        s_acc.sendto(phase_1B_message.encode(), config['proposers'])
                 # print('acceptor', id, state_dict)
-            elif message_phase == '2A':
+            elif message_phase == '2A':  # avoid errors
                 # print(decoded_message)
                 if decoded_message.c_rnd >= acc_state_dict[message_instance]['rnd']:
                     acc_state_dict[message_instance]['v_rnd'] = decoded_message.c_rnd
@@ -154,7 +152,9 @@ def proposer(config, id):
                                                c_rnd=state_dict[len(state_dict) - 1]['c_rnd'])
                     s.sendto(phase_1A_message.encode(), config['acceptors'])
                 # print('proposer', id, state_dict) # phase 1a working
-            elif not client_message and len(state_dict) > 0 and Message(0, 'DECODING').decode(msg).instance<len(state_dict):  # to avoid errors from catchup
+
+            elif not client_message and len(state_dict) > 0 and Message(0, 'DECODING').decode(msg).instance in list(
+                    state_dict.keys()):  # to avoid errors from catchup
                 decoded_message = Message(0, 'DECODING').decode(msg)
                 message_instance = decoded_message.instance
                 message_phase = decoded_message.phase
@@ -201,29 +201,69 @@ def proposer(config, id):
                                                                  v_val=value_to_be_proposed)
                                 s.sendto(phase_DECISION_message.encode(),
                                          config['learners'])
-                            print('Consensus reached by proposer: ', id, ' instance:', message_instance, 'value: ',
-                                  value_to_be_proposed)
+                                print('Consensus reached by proposer: ', id, ' instance:', message_instance, 'value: ',
+                                      value_to_be_proposed)
 
                             # print('proposer', id, state_dict)
-                elif state_dict[message_instance]['phase'] == 'DECISION' and message_phase == 'CATCHUP':
+                # if the message is not 1a nor 2a, it is a catchup message for sure so the else will hande if it is not in the keys starting a 1a phase
+                elif message_phase == 'CATCHUP' and state_dict[message_instance]['phase'] == 'DECISION':
+                    print(decoded_message)
                     # from instance val to the last, if not equal to prev call phase 1a
-                    if len(state_dict.keys()) > 0 and message_instance < len(state_dict.keys()):
-                        if np.random.uniform(low=0.0, high=1.0, size=None) > LOSS_PERCENTAGE:
-                            phase_DECISION_message = Message(message_instance, 'DECISION',
-                                                             v_val=state_dict[message_instance]['value'])
-                            s.sendto(phase_DECISION_message.encode(),
-                                     config['learners'])
-                            print('Catchup proposer: ', id, ' instance:', message_instance,
-                                  'value: ', state_dict[message_instance]['value'])
+                    # if len(state_dict.keys()) > 0 and message_instance < len(state_dict.keys()): implied by the parent if
+                    for c_index in range(message_instance, len(state_dict.keys())):
+                        if c_index in state_dict.keys():
+                            if np.random.uniform(low=0.0, high=1.0, size=None) > LOSS_PERCENTAGE:
+                                phase_DECISION_message = Message(c_index, 'DECISION',
+                                                                 v_val=state_dict[c_index]['value'])
+                                s.sendto(phase_DECISION_message.encode(),
+                                         config['learners'])
+                                print('Catchup proposer: ', id, ' instance:', c_index,
+                                      'value: ', state_dict[c_index]['value'])
 
 
 def learner_catchup_timeout():
-    last_catchup = 0
+    last_catchup = time.time()
+    last_true = -1
+    #print('THREAD CALLED')
     while True:
         if time.time() - last_catchup > TIMEOUT_TIMER:
-            missing_instance = len(list(learned_values.keys()))
-            catchup_message = Message(missing_instance, 'CATCHUP')
-            s_learners.sendto(catchup_message.encode(), config['proposers'])
+            #print('TIMEOUT TRIGGERED', list(learned_values.keys()), len(list(learned_values.keys())))
+            if len(list(learned_values.keys())) > 0:
+                if list(learned_values.keys())[0] == 0 and last_true == -1:
+                    print('instance 0:', learned_values[0])
+                    last_true = 0
+                    sys.stdout.flush()
+
+                elif list(learned_values.keys())[0] != 0 and last_true == -1:
+                    catchup_message = Message(0, 'CATCHUP')
+                    if np.random.uniform(low=0.0, high=1.0, size=None) > LOSS_PERCENTAGE:
+                        s_learners.sendto(catchup_message.encode(), config['proposers'])
+
+                elif len(list(learned_values.keys())) > 1 and last_true + 1 < len(
+                        list(learned_values.keys())) and last_true > -1:
+                    for g in range(last_true + 1, len(list(learned_values.keys()))):
+                        if list(learned_values.keys())[g] - 1 == list(learned_values.keys())[g - 1]:
+                            current_instance = list(learned_values.keys())[g]
+                            print('instance ' + str(current_instance) + ':', learned_values[current_instance])
+                            sys.stdout.flush()
+                            last_true = current_instance
+
+                        else:
+                            catchup_message = Message(list(learned_values.keys())[g - 1], 'CATCHUP')
+                            if np.random.uniform(low=0.0, high=1.0, size=None) > LOSS_PERCENTAGE:
+                                s_learners.sendto(catchup_message.encode(), config['proposers'])
+                            break
+
+                elif last_true + 1 == len(list(learned_values.keys())):
+                    catchup_message = Message(last_true, 'CATCHUP')
+                    if np.random.uniform(low=0.0, high=1.0, size=None) > LOSS_PERCENTAGE:
+                        s_learners.sendto(catchup_message.encode(), config['proposers'])
+            # to update new created learners
+            else:
+                catchup_message = Message(0, 'CATCHUP')
+                if np.random.uniform(low=0.0, high=1.0, size=None) > LOSS_PERCENTAGE:
+                    s_learners.sendto(catchup_message.encode(), config['proposers'])
+
             last_catchup = time.time()
 
 
@@ -239,11 +279,11 @@ def learner(config, id):
         msg = r.recv(2 ** 30)
         if msg is not None:
             msg_decoded = Message(0, 'DECODING').decode(msg)  # create instance of Message for the received decision
-            if msg_decoded.instance == len(list(learned_values.keys())):
+            if msg_decoded.instance not in list(learned_values.keys()):
                 learned_values[msg_decoded.instance] = msg_decoded.v_val
-                print(msg_decoded.v_val)
-                # print(msg = msg.v_val)
-                sys.stdout.flush()
+                learned_values = dict(sorted(learned_values.items()))
+                #print(learned_values)
+            sys.stdout.flush()
 
 
 def client(config, id):

@@ -47,6 +47,7 @@ class Message:
         self.rnd = data['rnd']
         self.v_rnd = data['v_rnd']
         self.v_val = data['v_val']
+        self.phase = data['phase']
         return self
 
     def __str__(self):
