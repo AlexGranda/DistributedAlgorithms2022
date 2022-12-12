@@ -92,6 +92,17 @@ def acceptor(config, id):
                                                    v_rnd=acc_state_dict[message_instance]['v_rnd'],
                                                    v_val=acc_state_dict[message_instance]['v_val'])
                         s_acc.sendto(phase_2B_message.encode(), config['proposers'])
+            #to handle catchup from proposers, send a message to proposers with a modified rnd, equal to proposer's crnd, in order to overwrite values in the proposer
+            #proposers will never reach consensus with this value since the crnd of the proposer without this value will be lower than the rnd of the acceptors,
+            #then the timeout for the quorum will be triggered, the crnd updated until also this proposer will reach the consensus
+            elif message_phase == 'CATCHUP':
+                if message_instance in acc_state_dict.keys():
+                    print('ACCEPTORS CATCHUP ON INSTANCE: ', message_instance)
+                    if np.random.uniform(low=0.0, high=1.0, size=None) > LOSS_PERCENTAGE:
+                        phase_1B_message = Message(message_instance, '1B', rnd=decoded_message.c_rnd, #should be the crnd of the message, but due to the previous commentis the rnd of the acceptor
+                                                   v_rnd=acc_state_dict[message_instance]['v_rnd'],
+                                                   v_val=acc_state_dict[message_instance]['v_val'])
+                        s_acc.sendto(phase_1B_message.encode(), config['proposers'])
 
 
 # thread to check instances going out of time for the quorum
@@ -219,10 +230,41 @@ def proposer(config, id):
                                          config['learners'])
                                 print('Catchup proposer: ', id, ' instance:', c_index,
                                       'value: ', state_dict[c_index]['value'])
+                        # else that instance has been missed by proposer, start a 1a phase to get updated by acceptors
+                        else:
+                            state_dict[c_index] = {
+                                'quorum1B': 0,  # quorum counter for phase 2A
+                                'quorum2B': 0,  # quorum counter for DECISION
+                                'value': None,  # no value to be proposed, it will be overwritten by acceptors
+                                'phase': '1A',  # current proposer phase for this instance
+                                'k': 0,
+                                'k_v_val': None,
+                                'timestamp': time.time(),
+                                'c_rnd': id
+                            }
+                            if np.random.uniform(low=0.0, high=1.0, size=None) > LOSS_PERCENTAGE:
+                                phase_1A_message = Message(c_index, 'CATCHUP', c_rnd=state_dict[c_index]['c_rnd'])
+                                s.sendto(phase_1A_message.encode(), config['acceptors'])
+            # else that instance has been missed by proposer, start a 1a phase to get updated by acceptors
+            elif len(state_dict) > 0 and Message(0, 'DECODING').decode(msg).instance not in list(state_dict.keys()):
+                state_dict[Message(0, 'DECODING').decode(msg).instance] = {
+                    'quorum1B': 0,  # quorum counter for phase 2A
+                    'quorum2B': 0,  # quorum counter for DECISION
+                    'value': None,  # no value to be proposed, it will be overwritten by acceptors
+                    'phase': '1A',  # current proposer phase for this instance
+                    'k': 0,
+                    'k_v_val': None,
+                    'timestamp': time.time(),
+                    'c_rnd': id
+                }
+                if np.random.uniform(low=0.0, high=1.0, size=None) > LOSS_PERCENTAGE:
+                    phase_1A_message = Message(Message(0, 'DECODING').decode(msg).instance, 'CATCHUP',
+                                               c_rnd=state_dict[Message(0, 'DECODING').decode(msg).instance]['c_rnd'])
+                    s.sendto(phase_1A_message.encode(), config['acceptors'])
 
 
 def learner_catchup_timeout():
-    last_catchup = time.time()
+    last_catchup = time.time() #to wait for clients the first time
     last_true = -1
     #print('THREAD CALLED')
     while True:
