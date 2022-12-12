@@ -11,8 +11,8 @@ import numpy as np
 from message import Message
 
 ACCEPTORS = 3  # if you launch a different number of acceptors, change here
-LOSS_PERCENTAGE = 0.15  # PUT ZERO IF YOU WANT TO USE YOUR SCRIPT FOR THE LOSS PERCENTAGE
-TIMEOUT_TIMER = 0.2  # timeout for both for proposers and learners
+LOSS_PERCENTAGE = 0.25  # PUT ZERO IF YOU WANT TO USE YOUR SCRIPT FOR THE LOSS PERCENTAGE
+TIMEOUT_TIMER = 0.15  # timeout for both for proposers and learners
 
 
 def mcast_receiver(hostport):
@@ -109,7 +109,8 @@ def acceptor(config, id):
 # thread to check instances going out of time for the quorum
 def timeout_checker():
     while True:
-        for p_instance in range(len(state_dict)):
+        #for p_instance in range(len(state_dict)):
+        for p_instance in list(state_dict.keys()):
             if time.time() - state_dict[p_instance]['timestamp'] > TIMEOUT_TIMER and not state_dict[p_instance][
                                                                                              'phase'] == 'DECISION':
                 state_dict[p_instance]['quorum1B'] = 0
@@ -333,11 +334,13 @@ def learner(config, id):
 
 def client(config, id):
     print('-> client ', id)
+    client_timer = True
     s = mcast_sender()
     for value in sys.stdin:
         value = value.strip()
         print("client: sending %s to proposers" % value)
         s.sendto(value.encode(), config['proposers'])
+
     print('client done.')
 
 
