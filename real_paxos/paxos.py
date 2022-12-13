@@ -11,7 +11,7 @@ import numpy as np
 from message import Message
 
 ACCEPTORS = 3  # if you launch a different number of acceptors, change here
-LOSS_PERCENTAGE = 0.25  # PUT ZERO IF YOU WANT TO USE YOUR SCRIPT FOR THE LOSS PERCENTAGE
+LOSS_PERCENTAGE = 0.0  # PUT ZERO IF YOU WANT TO USE YOUR SCRIPT FOR THE LOSS PERCENTAGE
 TIMEOUT_TIMER = 0.15  # timeout for both for proposers and learners
 
 

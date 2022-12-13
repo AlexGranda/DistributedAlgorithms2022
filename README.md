@@ -38,7 +38,9 @@ We tried it with x equals to 100 and 1000 values, it worked properly.
 To run the test 4 of the assignment, regardless which kind of run file do you want to use,
 you can set the percentage of loss message changing the variable 'LOSS_PERCENTAGE' in the 'real_paxos/paxos.py' file
 at the line 14. We have run ALL the tests with and without the loss percentage to be
-sure to have implemented it correctly.
+sure to have implemented it correctly. Anyway, proposing 1000 messages with a quite high percentage loss
+may need more than 15 seconds to allow all the learners to learn all the values, so you should
+increase the time in the run.sh file to be sure about it.
 
 To run the test 5 of the assignment, we run test one as usual:
 ```bash
