@@ -10,11 +10,6 @@ The present implementation takes as base the paxos skeleton provided by the TAs,
 of Paxos can be found under the `real_paxos` folder. It has the same file structure as the `fake_paxos` original folder, and most
 of our implementation can be found in the `paxos.py` file.
 
-The command to run our implementation, given you are in the project folder, is the following:
-```bash
-./run.sh real_paxos 500
-```
-
 To run the test 1 of the assignment, you will have to write:
 ```bash
 ./run.sh real_paxos x
