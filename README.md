@@ -80,6 +80,7 @@ enough time (since we had to put a timer on the clients) our implementation is n
 Using the times we specified in the run files and in our code our implementation works perfectly up to 2000 values
 for all the six tests in the assignment, proposing more values with these timings won't work.
 All the tests behaved in the same manner as for the basic paxos.
+If you would like to run test 6 with 2000 values, you will have to set all the times currently equal to 10, to 100 seconds.
 
 setting lines in the code
 ```python
