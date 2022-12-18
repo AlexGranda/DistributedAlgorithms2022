@@ -1,3 +1,5 @@
+import time
+
 import message
 import socket
 import sys
@@ -7,6 +9,7 @@ import struct
 from message import Message
 import pickle
 import codecs
+import random
 
 
 def mcast_sender():
@@ -42,3 +45,16 @@ print(sys.getsizeof(codecs.encode(a)), 'bytes')
 mydict = {'1': ['bar']}
 print(mydict, end='\n')
 
+dizionario_di_prova = dict()
+for i in range(10000):
+    while True:
+        t = random.randint(0, 100000000)
+        if t not in dizionario_di_prova.keys():
+            dizionario_di_prova[t] = i
+            break
+
+t = time.time()
+print(t)
+dizionario_di_prova = dict(sorted(dizionario_di_prova.items()))
+print('time taken: ', time.time() - t)
+print(dizionario_di_prova.keys())

@@ -37,20 +37,20 @@ echo "starting proposers..."
 ./proposer.sh 2 $conf &
 
 echo "waiting to start clients"
-sleep 10
+sleep 5
 echo "starting client 1..."
 
 ./client.sh 1 $conf < ../prop1 &
 
-sleep 3
+sleep 60
 echo "starting learners 2..."
 ./learner.sh 2 $conf > ../learn2 &
 
-sleep 3
+sleep 60
 echo "starting client 2..."
 ./client.sh 2 $conf < ../prop2 &
 
-sleep 10
+sleep 60
 
 $KILLCMD
 wait
